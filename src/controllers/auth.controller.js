@@ -1,6 +1,9 @@
 import asyncHandler from "../service/asyncHandler";
 import CustomError from "../utils/CustomError";
-import User from "../models/user.schema.js"
+import User from "../models/user.schema.js";
+import mailHelper from "../utils/mailHelper.js"
+import userSchema from "../models/user.schema.js";
+
 
 export const cookieOptions={
     expires:new Date(Date.now()+3*24*3600*1000),
@@ -91,3 +94,33 @@ export const getProfile=asyncHandler(async (req,res)=>{
         user
     })
 })
+
+export const forgotPassword =asyncHandler(async(req,res)=>{
+    const {email}=req.body
+    const user =await User.findOne({email})
+
+   if(!user){
+        throw new CustomError("User not found",404)
+   } 
+   const resetToken=user.generateForgotPasswordToken();
+   await user.save({validateBeforeSave:false})
+
+   const resetUrl=`${req.protocol}://${req.get('host')}/api/v1/auth/password/reset/${token}`
+
+   const message=`Your password rest token is as follows \n \n ${resetUrl}\n \n if
+   this was not requested by you,please ignore.`
+
+   try {
+        await mailHelper({
+            email:user.email,
+            subject:"Password reset mail",
+            message
+        })
+   } catch (error) {
+        user.generateForgotPasswordToken=undefined
+        user.generateForgotPasswordExpiry=undefined
+        await userSchema.save({validateBeforeSave:false})
+        throw new CustomError(error.message||"Email could not be sent",500)
+   }
+})
+ 
