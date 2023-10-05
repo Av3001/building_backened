@@ -123,4 +123,41 @@ export const forgotPassword =asyncHandler(async(req,res)=>{
         throw new CustomError(error.message||"Email could not be sent",500)
    }
 })
+
+export const restPassword=asyncHandler(async(req,res)=>{
+    const {token:resetToken}=req.params
+    const {password,confirmPassword}=req.body
+    const resetPasswordToken=crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex")
+
+
+    const user=await User.findOne({
+        generateForgotPasswordToken:resetPasswordToken,
+        generateForgotPasswordExpiry:{$gt: Date.now()}
+    })
+
+    if(!user){
+        throw new CustomError("password reset token is invalid or expired",400)
+    }
+
+    if (password!==confirmPassword){
+        throw new CustomError("Password does not match",400)
+    }
+    user.password=password
+    user.generateForgotPasswordToken=undefined
+    user.generateForgotPasswordExpiry=undefined
+
+    await user.save()
+
+    const token=user.getJWTtoken()
+    res.cookie("token",token,cookieOptions)
+
+    res.status(200).json({
+        success:true,
+        user,
+    })
+
+})
  
